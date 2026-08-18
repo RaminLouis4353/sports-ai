@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+.venv/
+
+# Machine learning models
+models/*.pkl
+models/*.joblib
+
+# Raw and processed datasets
+data/raw/*
+data/processed/*
+
+# Generated predictions
+predictions/*
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
