@@ -1,29 +1,30 @@
 import csv
 from pathlib import Path
 
+import joblib
+
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import (
+    RandomForestClassifier,
+    GradientBoostingClassifier,
+    HistGradientBoostingClassifier
+)
+
 from sklearn.metrics import (
     accuracy_score,
-    log_loss,
-    classification_report,
-    confusion_matrix
+    log_loss
 )
+
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 
-import joblib
-
 
 # ---------------------------------------------------------
-# FILES
+# FILE
 # ---------------------------------------------------------
 
 INPUT_FILE = Path(
     "data/processed/mlb_multi_season_features.csv"
-)
-
-MODEL_FILE = Path(
-    "models/mlb_logistic_model.pkl"
 )
 
 
@@ -33,8 +34,6 @@ MODEL_FILE = Path(
 
 FEATURES = [
 
-    # Overall home team performance
-
     "Home_WinPct",
     "Home_AvgRunsScored",
     "Home_AvgRunsAllowed",
@@ -42,16 +41,12 @@ FEATURES = [
     "Home_RunDifferential",
     "Home_RecentRunDifferential",
 
-    # Overall away team performance
-
     "Away_WinPct",
     "Away_AvgRunsScored",
     "Away_AvgRunsAllowed",
     "Away_RecentWinPct",
     "Away_RunDifferential",
     "Away_RecentRunDifferential",
-
-    # Home / road splits
 
     "Home_HomeWinPct",
     "Home_HomeAvgRunsScored",
@@ -63,16 +58,12 @@ FEATURES = [
     "Away_RoadAvgRunsAllowed",
     "Away_RoadRecentWinPct",
 
-    # Overall matchup differences
-
     "WinPct_Diff",
     "AvgRunsScored_Diff",
     "AvgRunsAllowed_Diff",
     "RecentWinPct_Diff",
     "RunDifferential_Diff",
     "RecentRunDifferential_Diff",
-
-    # Home / road matchup differences
 
     "HomeRoadWinPct_Diff",
     "HomeRoadRunsScored_Diff",
@@ -122,21 +113,74 @@ def prepare_data(rows):
 
     for row in rows:
 
-        features = []
-
-        for feature in FEATURES:
-
-            features.append(
-                float(row[feature])
-            )
-
-        X.append(features)
+        X.append([
+            float(row[feature])
+            for feature in FEATURES
+        ])
 
         y.append(
             int(row["HomeWon"])
         )
 
     return X, y
+
+
+# ---------------------------------------------------------
+# EVALUATE MODEL
+# ---------------------------------------------------------
+
+def evaluate_model(
+    name,
+    model,
+    X_train,
+    X_test,
+    y_train,
+    y_test
+):
+
+    print("")
+    print("----------------------------------------")
+    print(f"Training: {name}")
+    print("----------------------------------------")
+
+    model.fit(
+        X_train,
+        y_train
+    )
+
+    predictions = model.predict(
+        X_test
+    )
+
+    probabilities = model.predict_proba(
+        X_test
+    )[:, 1]
+
+    accuracy = accuracy_score(
+        y_test,
+        predictions
+    )
+
+    loss = log_loss(
+        y_test,
+        probabilities
+    )
+
+    print(
+        f"Accuracy: {accuracy:.4f} "
+        f"({accuracy * 100:.2f}%)"
+    )
+
+    print(
+        f"Log Loss: {loss:.4f}"
+    )
+
+    return {
+        "name": name,
+        "model": model,
+        "accuracy": accuracy,
+        "log_loss": loss
+    }
 
 
 # ---------------------------------------------------------
@@ -150,7 +194,7 @@ def main():
     )
 
     print(
-        "MLB LOGISTIC REGRESSION MODEL"
+        "MLB MODEL COMPARISON"
     )
 
     print(
@@ -159,10 +203,12 @@ def main():
 
     rows = load_data()
 
-    X, y = prepare_data(rows)
+    X, y = prepare_data(
+        rows
+    )
 
     # -----------------------------------------------------
-    # CHRONOLOGICAL TRAIN / TEST SPLIT
+    # CHRONOLOGICAL SPLIT
     # -----------------------------------------------------
 
     split_index = int(
@@ -188,167 +234,193 @@ def main():
     )
 
     print(
-        f"Model features: {len(FEATURES)}"
+        f"Features: {len(FEATURES)}"
     )
 
-    print("")
-
-    print(
-        "Features used:"
-    )
-
-    for feature in FEATURES:
-
-        print(
-            f"  - {feature}"
-        )
-
     # -----------------------------------------------------
-    # BUILD MODEL
+    # MODELS
     # -----------------------------------------------------
 
-    model = Pipeline([
+    models = [
 
         (
-            "scaler",
-            StandardScaler()
+            "Logistic Regression",
+
+            Pipeline([
+                (
+                    "scaler",
+                    StandardScaler()
+                ),
+
+                (
+                    "classifier",
+                    LogisticRegression(
+                        max_iter=2000
+                    )
+                )
+            ])
         ),
 
         (
-            "classifier",
-            LogisticRegression(
-                max_iter=2000
+            "Random Forest",
+
+            RandomForestClassifier(
+                n_estimators=500,
+                max_depth=8,
+                min_samples_leaf=10,
+                random_state=42,
+                n_jobs=-1
+            )
+        ),
+
+        (
+            "Gradient Boosting",
+
+            GradientBoostingClassifier(
+                n_estimators=200,
+                learning_rate=0.03,
+                max_depth=2,
+                min_samples_leaf=10,
+                random_state=42
+            )
+        ),
+
+        (
+            "HistGradientBoosting",
+
+            HistGradientBoostingClassifier(
+                max_iter=300,
+                learning_rate=0.03,
+                max_leaf_nodes=15,
+                min_samples_leaf=20,
+                l2_regularization=1.0,
+                random_state=42
             )
         )
-    ])
+    ]
 
     # -----------------------------------------------------
-    # TRAIN
+    # RUN MODELS
     # -----------------------------------------------------
 
-    print("")
+    results = []
 
-    print(
-        "Training model...",
-        flush=True
-    )
+    for name, model in models:
 
-    model.fit(
-        X_train,
-        y_train
-    )
-
-    print(
-        "Model trained.",
-        flush=True
-    )
-
-    # -----------------------------------------------------
-    # PREDICTIONS
-    # -----------------------------------------------------
-
-    predictions = model.predict(
-        X_test
-    )
-
-    probabilities = model.predict_proba(
-        X_test
-    )[:, 1]
-
-    # -----------------------------------------------------
-    # EVALUATION
-    # -----------------------------------------------------
-
-    accuracy = accuracy_score(
-        y_test,
-        predictions
-    )
-
-    loss = log_loss(
-        y_test,
-        probabilities
-    )
-
-    print("")
-
-    print(
-        "=============================="
-    )
-
-    print(
-        "MODEL RESULTS"
-    )
-
-    print(
-        "=============================="
-    )
-
-    print(
-        f"Accuracy: {accuracy:.4f}"
-    )
-
-    print(
-        f"Accuracy %: {accuracy * 100:.2f}%"
-    )
-
-    print(
-        f"Log Loss: {loss:.4f}"
-    )
-
-    # -----------------------------------------------------
-    # CLASSIFICATION REPORT
-    # -----------------------------------------------------
-
-    print("")
-
-    print(
-        "Classification Report:"
-    )
-
-    print(
-        classification_report(
-            y_test,
-            predictions,
-            target_names=[
-                "Away Win",
-                "Home Win"
-            ]
+        result = evaluate_model(
+            name,
+            model,
+            X_train,
+            X_test,
+            y_train,
+            y_test
         )
-    )
 
-    # -----------------------------------------------------
-    # CONFUSION MATRIX
-    # -----------------------------------------------------
-
-    print(
-        "Confusion Matrix:"
-    )
-
-    print(
-        confusion_matrix(
-            y_test,
-            predictions
+        results.append(
+            result
         )
+
+    # -----------------------------------------------------
+    # RESULTS
+    # -----------------------------------------------------
+
+    print("")
+
+    print(
+        "========================================"
+    )
+
+    print(
+        "MODEL COMPARISON RESULTS"
+    )
+
+    print(
+        "========================================"
+    )
+
+    print("")
+
+    print(
+        f"{'Model':<25}"
+        f"{'Accuracy':>12}"
+        f"{'Log Loss':>12}"
+    )
+
+    print(
+        "-" * 49
+    )
+
+    for result in results:
+
+        print(
+            f"{result['name']:<25}"
+            f"{result['accuracy'] * 100:>11.2f}%"
+            f"{result['log_loss']:>12.4f}"
+        )
+
+    # -----------------------------------------------------
+    # BEST MODELS
+    # -----------------------------------------------------
+
+    best_accuracy = max(
+        results,
+        key=lambda x: x["accuracy"]
+    )
+
+    best_log_loss = min(
+        results,
+        key=lambda x: x["log_loss"]
+    )
+
+    print("")
+
+    print(
+        "Best Accuracy:"
+    )
+
+    print(
+        f"  {best_accuracy['name']} "
+        f"({best_accuracy['accuracy'] * 100:.2f}%)"
+    )
+
+    print("")
+
+    print(
+        "Best Log Loss:"
+    )
+
+    print(
+        f"  {best_log_loss['name']} "
+        f"({best_log_loss['log_loss']:.4f})"
     )
 
     # -----------------------------------------------------
-    # SAVE MODEL
+    # SAVE BEST MODEL BY LOG LOSS
     # -----------------------------------------------------
 
-    MODEL_FILE.parent.mkdir(
+    output_dir = Path(
+        "models"
+    )
+
+    output_dir.mkdir(
         parents=True,
         exist_ok=True
     )
 
+    model_file = (
+        output_dir /
+        "mlb_best_model.pkl"
+    )
+
     joblib.dump(
-        model,
-        MODEL_FILE
+        best_log_loss["model"],
+        model_file
     )
 
     print("")
 
     print(
-        f"Model saved to: {MODEL_FILE}"
+        f"Best model saved to: {model_file}"
     )
 
     print("")
@@ -358,7 +430,7 @@ def main():
     )
 
     print(
-        "MODEL TRAINING COMPLETE"
+        "MODEL COMPARISON COMPLETE"
     )
 
     print(
