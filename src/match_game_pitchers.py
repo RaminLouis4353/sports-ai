@@ -1,52 +1,169 @@
 from pathlib import Path
 import csv
+import re
 
 
-GAMES_FILE = Path("data/processed/mlb_multi_season_games.csv")
-PITCHERS_FILE = Path("data/raw/mlb_game_pitchers.csv")
-OUTPUT_FILE = Path("data/processed/mlb_games_with_pitchers.csv")
+GAMES_FILE = Path(
+    "data/processed/mlb_multi_season_games.csv"
+)
+
+PITCHERS_FILE = Path(
+    "data/raw/mlb_game_pitchers.csv"
+)
+
+OUTPUT_FILE = Path(
+    "data/processed/mlb_games_with_pitchers.csv"
+)
+
+
+# ============================================================
+# TEAM ABBREVIATION NORMALIZATION
+# ============================================================
+
+TEAM_MAP = {
+    "ARI": "ARI",
+    "AZ": "ARI",
+
+    "CHW": "CHW",
+    "CWS": "CHW",
+
+    "KCR": "KCR",
+    "KC": "KCR",
+
+    "SDP": "SDP",
+    "SD": "SDP",
+
+    "SFG": "SFG",
+    "SF": "SFG",
+
+    "TBR": "TBR",
+    "TB": "TBR",
+
+    "WSN": "WSN",
+    "WSH": "WSN",
+}
 
 
 def clean_team(value):
-    value = str(value).strip().upper()
+    """
+    Clean and normalize MLB team abbreviations.
+    """
 
-    if value in ("", "NONE", "NAN", "NULL"):
+    if value is None:
         return ""
 
-    return value
+    value = str(value).strip().upper()
 
+    if value in (
+        "",
+        "NONE",
+        "NAN",
+        "NULL"
+    ):
+        return ""
+
+    return TEAM_MAP.get(
+        value,
+        value
+    )
+
+
+# ============================================================
+# GAME NUMBER
+# ============================================================
+
+def get_game_number(date_text):
+    """
+    Extract doubleheader game number.
+
+    Examples:
+
+        Monday, May 30 (1) -> 1
+        Monday, May 30 (2) -> 2
+        Tuesday, May 3    -> 1
+    """
+
+    if date_text is None:
+        return 1
+
+    text = str(date_text).strip()
+
+    match = re.search(
+        r"\((1|2)\)",
+        text
+    )
+
+    if match:
+        return int(match.group(1))
+
+    return 1
+
+
+# ============================================================
+# GAME DATE
+# ============================================================
 
 def game_date(date_text):
     """
     Convert:
+
         Friday, Apr 15
 
-    Into:
+    or:
+
+        Monday, May 30 (1)
+
+    into:
+
         Apr 15
+        May 30
     """
 
-    date_text = str(date_text).strip()
+    if date_text is None:
+        return ""
 
+    date_text = str(
+        date_text
+    ).strip()
+
+    # Remove weekday.
     if "," in date_text:
-        date_text = date_text.split(",", 1)[1].strip()
+        date_text = date_text.split(
+            ",",
+            1
+        )[1].strip()
 
-    date_text = date_text.replace("(1)", "")
-    date_text = date_text.replace("(2)", "")
-    date_text = date_text.strip()
+    # Remove doubleheader marker.
+    date_text = re.sub(
+        r"\s*\([12]\)\s*$",
+        "",
+        date_text
+    )
 
-    return date_text
+    return date_text.strip()
 
+
+# ============================================================
+# PITCHER DATE
+# ============================================================
 
 def pitcher_date(date_text):
     """
     Convert:
+
         2024-04-15
 
-    Into:
+    into:
+
         Apr 15
     """
 
-    date_text = str(date_text).strip()
+    if date_text is None:
+        return ""
+
+    date_text = str(
+        date_text
+    ).strip()
 
     parts = date_text.split("-")
 
@@ -71,49 +188,181 @@ def pitcher_date(date_text):
         "12": "Dec",
     }
 
-    month_name = months.get(month)
+    month_name = months.get(
+        month
+    )
 
     if not month_name:
         return ""
 
-    return f"{month_name} {int(day)}"
+    return (
+        f"{month_name} "
+        f"{int(day)}"
+    )
 
+
+# ============================================================
+# GAME MATCHING KEY
+# ============================================================
 
 def make_game_key(row):
-    season = str(row.get("Season", "")).strip()
-    date = game_date(row.get("Date", ""))
-    home = clean_team(row.get("Home", ""))
-    away = clean_team(row.get("Away", ""))
+    season = str(
+        row.get("Season", "")
+    ).strip()
 
-    if not season or not date or not home or not away:
+    date = game_date(
+        row.get("Date", "")
+    )
+
+    home = clean_team(
+        row.get("Home", "")
+    )
+
+    away = clean_team(
+        row.get("Away", "")
+    )
+
+    if (
+        not season
+        or not date
+        or not home
+        or not away
+    ):
         return ""
 
-    return f"{season}|{date}|{home}|{away}"
+    return (
+        f"{season}|"
+        f"{date}|"
+        f"{home}|"
+        f"{away}"
+    )
 
+
+# ============================================================
+# PITCHER MATCHING KEY
+# ============================================================
 
 def make_pitcher_key(row):
-    season = str(row.get("Season", "")).strip()
-    date = pitcher_date(row.get("Date", ""))
-    home = clean_team(row.get("Home", ""))
-    away = clean_team(row.get("Away", ""))
+    season = str(
+        row.get("Season", "")
+    ).strip()
 
-    if not season or not date or not home or not away:
+    date = pitcher_date(
+        row.get("Date", "")
+    )
+
+    home = clean_team(
+        row.get("Home", "")
+    )
+
+    away = clean_team(
+        row.get("Away", "")
+    )
+
+    if (
+        not season
+        or not date
+        or not home
+        or not away
+    ):
         return ""
 
-    return f"{season}|{date}|{home}|{away}"
+    return (
+        f"{season}|"
+        f"{date}|"
+        f"{home}|"
+        f"{away}"
+    )
 
+
+# ============================================================
+# NORMALIZE PITCHER ID
+# ============================================================
+
+def clean_id(value):
+    if value is None:
+        return ""
+
+    value = str(
+        value
+    ).strip()
+
+    if value in (
+        "",
+        "None",
+        "none",
+        "nan",
+        "NaN",
+        "NULL"
+    ):
+        return ""
+
+    # Pandas-style floating ID:
+    #
+    # 425794.0 -> 425794
+    #
+    if value.endswith(".0"):
+        value = value[:-2]
+
+    return value
+
+
+# ============================================================
+# NORMALIZE PITCHER NAME
+# ============================================================
+
+def clean_name(value):
+    if value is None:
+        return ""
+
+    value = str(
+        value
+    ).strip()
+
+    if value.lower() in (
+        "",
+        "none",
+        "nan",
+        "null"
+    ):
+        return ""
+
+    return value
+
+
+# ============================================================
+# MAIN
+# ============================================================
 
 def main():
 
-    print("========================================")
-    print("MLB PITCHER DATA MATCHING")
-    print("========================================")
+    print(
+        "========================================"
+    )
 
-    # --------------------------------------------------
+    print(
+        "MLB PITCHER DATA MATCHING"
+    )
+
+    print(
+        "TEAM NORMALIZATION ENABLED"
+    )
+
+    print(
+        "DOUBLEHEADER SUPPORT ENABLED"
+    )
+
+    print(
+        "========================================"
+    )
+
+    # --------------------------------------------------------
     # LOAD GAME DATA
-    # --------------------------------------------------
+    # --------------------------------------------------------
 
-    print("\nLoading game data...")
+    print(
+        "\nLoading game data..."
+    )
 
     with open(
         GAMES_FILE,
@@ -122,15 +371,21 @@ def main():
         newline=""
     ) as f:
 
-        games = list(csv.DictReader(f))
+        games = list(
+            csv.DictReader(f)
+        )
 
-    print(f"Games loaded: {len(games)}")
+    print(
+        f"Games loaded: {len(games)}"
+    )
 
-    # --------------------------------------------------
+    # --------------------------------------------------------
     # LOAD PITCHER DATA
-    # --------------------------------------------------
+    # --------------------------------------------------------
 
-    print("\nLoading pitcher data...")
+    print(
+        "\nLoading pitcher data..."
+    )
 
     with open(
         PITCHERS_FILE,
@@ -139,234 +394,368 @@ def main():
         newline=""
     ) as f:
 
-        pitchers = list(csv.DictReader(f))
+        pitchers = list(
+            csv.DictReader(f)
+        )
 
-    print(f"Pitcher records loaded: {len(pitchers)}")
+    print(
+        f"Pitcher records loaded: "
+        f"{len(pitchers)}"
+    )
 
-    # --------------------------------------------------
-    # GAME KEYS
-    # --------------------------------------------------
+    # --------------------------------------------------------
+    # CREATE PITCHER LOOKUP
+    #
+    # IMPORTANT:
+    #
+    # A key can occur more than once because of
+    # doubleheaders.
+    #
+    # Therefore:
+    #
+    # key -> [pitcher1, pitcher2]
+    #
+    # NOT:
+    #
+    # key -> pitcher
+    # --------------------------------------------------------
 
-    print("\nCreating game matching keys...")
-
-    valid_games = 0
-
-    for row in games:
-
-        key = make_game_key(row)
-
-        row["MatchKey"] = key
-
-        if key:
-            valid_games += 1
-
-    print(f"Valid game keys: {valid_games}")
-
-    # Show examples so we know the format
-    print("\nExample game keys:")
-
-    shown = 0
-
-    for row in games:
-
-        if row["MatchKey"]:
-
-            print(
-                f"  {row['MatchKey']}"
-            )
-
-            shown += 1
-
-            if shown >= 5:
-                break
-
-    # --------------------------------------------------
-    # PITCHER KEYS
-    # --------------------------------------------------
-
-    print("\nCreating pitcher matching keys...")
+    print(
+        "\nCreating pitcher lookup..."
+    )
 
     pitcher_lookup = {}
 
-    valid_pitchers = 0
+    valid_pitcher_records = 0
 
-    duplicates = 0
+    for row in pitchers:
 
-    for i, row in enumerate(pitchers):
-
-        key = make_pitcher_key(row)
+        key = make_pitcher_key(
+            row
+        )
 
         if not key:
             continue
 
-        valid_pitchers += 1
+        valid_pitcher_records += 1
 
-        if key in pitcher_lookup:
-            duplicates += 1
-            continue
+        if key not in pitcher_lookup:
 
-        pitcher_lookup[key] = row
+            pitcher_lookup[key] = []
 
-        if (i + 1) % 1000 == 0:
-            print(
-                f"  Processed {i + 1}/{len(pitchers)}"
-            )
+        pitcher_lookup[key].append(
+            row
+        )
 
     print(
-        f"Valid pitcher keys: {valid_pitchers}"
+        f"Valid pitcher records: "
+        f"{valid_pitcher_records}"
     )
 
     print(
-        f"Unique pitcher game keys: "
+        f"Unique matchup/date keys: "
         f"{len(pitcher_lookup)}"
     )
 
-    print(
-        f"Duplicate pitcher keys ignored: "
-        f"{duplicates}"
+    duplicate_keys = sum(
+        1
+        for records in pitcher_lookup.values()
+        if len(records) > 1
     )
 
-    # Show examples
-    print("\nExample pitcher keys:")
+    duplicate_records = sum(
+        len(records) - 1
+        for records in pitcher_lookup.values()
+        if len(records) > 1
+    )
 
-    shown = 0
+    print(
+        f"Doubleheader keys: "
+        f"{duplicate_keys}"
+    )
 
-    for key in pitcher_lookup:
+    print(
+        f"Additional duplicate records: "
+        f"{duplicate_records}"
+    )
 
-        print(f"  {key}")
+    # --------------------------------------------------------
+    # MATCH GAMES
+    # --------------------------------------------------------
 
-        shown += 1
+    print(
+        "\nMatching pitchers to games..."
+    )
 
-        if shown >= 5:
-            break
-
-    # --------------------------------------------------
-    # MATCH
-    # --------------------------------------------------
-
-    print("\nMatching pitchers to games...")
+    # Track which occurrence of a key we are currently using.
+    #
+    # Example:
+    #
+    # 2022|May 3|NYM|ATL
+    #
+    # Game 1 -> pitcher record 1
+    # Game 2 -> pitcher record 2
+    #
+    pitcher_usage = {}
 
     home_matches = 0
     away_matches = 0
     both_matches = 0
     no_matches = 0
 
+    doubleheader_games = 0
+    doubleheader_matches = 0
+
     output_rows = []
 
     for row in games:
 
-        key = row["MatchKey"]
+        key = make_game_key(
+            row
+        )
 
-        pitcher = pitcher_lookup.get(key)
+        game_number = get_game_number(
+            row.get("Date", "")
+        )
+
+        row["MatchKey"] = key
+
+        row["GameNumber"] = game_number
+
+        # ----------------------------------------------------
+        # FIND PITCHER RECORDS
+        # ----------------------------------------------------
+
+        records = pitcher_lookup.get(
+            key,
+            []
+        )
+
+        # ----------------------------------------------------
+        # DETERMINE WHICH RECORD TO USE
+        # ----------------------------------------------------
+
+        pitcher = None
+
+        if records:
+
+            # Normal game:
+            #
+            # one pitcher record
+            #
+            # Doubleheader:
+            #
+            # two pitcher records
+            #
+            if len(records) == 1:
+
+                pitcher = records[0]
+
+            else:
+
+                doubleheader_games += 1
+
+                # Game 1 -> index 0
+                # Game 2 -> index 1
+
+                index = game_number - 1
+
+                if (
+                    index >= 0
+                    and index < len(records)
+                ):
+
+                    pitcher = records[index]
+
+                    doubleheader_matches += 1
+
+                else:
+
+                    # Fallback if unexpected
+                    # game number occurs.
+
+                    usage = pitcher_usage.get(
+                        key,
+                        0
+                    )
+
+                    if usage < len(records):
+
+                        pitcher = records[usage]
+
+                        pitcher_usage[key] = (
+                            usage + 1
+                        )
+
+        # ----------------------------------------------------
+        # NO PITCHER DATA
+        # ----------------------------------------------------
 
         if pitcher is None:
 
-            row["HomeStartingPitcherID"] = ""
-            row["HomeStartingPitcher"] = ""
-            row["AwayStartingPitcherID"] = ""
-            row["AwayStartingPitcher"] = ""
+            row[
+                "HomeStartingPitcherID"
+            ] = ""
+
+            row[
+                "HomeStartingPitcher"
+            ] = ""
+
+            row[
+                "AwayStartingPitcherID"
+            ] = ""
+
+            row[
+                "AwayStartingPitcher"
+            ] = ""
 
             no_matches += 1
 
+        # ----------------------------------------------------
+        # PITCHER DATA FOUND
+        # ----------------------------------------------------
+
         else:
 
-            home_pitcher = str(
-                pitcher.get(
-                    "HomeStartingPitcher",
-                    ""
-                )
-            )
-
-            away_pitcher = str(
-                pitcher.get(
-                    "AwayStartingPitcher",
-                    ""
-                )
-            )
-
-            home_id = str(
+            home_id = clean_id(
                 pitcher.get(
                     "HomeStartingPitcherID",
                     ""
                 )
             )
 
-            away_id = str(
+            away_id = clean_id(
                 pitcher.get(
                     "AwayStartingPitcherID",
                     ""
                 )
             )
 
-            if home_pitcher in ("None", "nan"):
-                home_pitcher = ""
+            home_name = clean_name(
+                pitcher.get(
+                    "HomeStartingPitcher",
+                    ""
+                )
+            )
 
-            if away_pitcher in ("None", "nan"):
-                away_pitcher = ""
+            away_name = clean_name(
+                pitcher.get(
+                    "AwayStartingPitcher",
+                    ""
+                )
+            )
 
-            if home_id in ("None", "nan"):
-                home_id = ""
+            row[
+                "HomeStartingPitcherID"
+            ] = home_id
 
-            if away_id in ("None", "nan"):
-                away_id = ""
+            row[
+                "HomeStartingPitcher"
+            ] = home_name
 
-            row["HomeStartingPitcherID"] = home_id
-            row["HomeStartingPitcher"] = home_pitcher
-            row["AwayStartingPitcherID"] = away_id
-            row["AwayStartingPitcher"] = away_pitcher
+            row[
+                "AwayStartingPitcherID"
+            ] = away_id
 
-            has_home = bool(home_pitcher)
-            has_away = bool(away_pitcher)
+            row[
+                "AwayStartingPitcher"
+            ] = away_name
+
+            has_home = bool(
+                home_id
+            )
+
+            has_away = bool(
+                away_id
+            )
 
             if has_home:
+
                 home_matches += 1
 
             if has_away:
+
                 away_matches += 1
 
-            if has_home and has_away:
+            if (
+                has_home
+                and has_away
+            ):
+
                 both_matches += 1
 
-            if not has_home and not has_away:
+            if (
+                not has_home
+                and not has_away
+            ):
+
                 no_matches += 1
 
-        output_rows.append(row)
+        output_rows.append(
+            row
+        )
 
-    # --------------------------------------------------
+    # --------------------------------------------------------
     # RESULTS
-    # --------------------------------------------------
-
-    print("\n========================================")
-    print("MATCHING RESULTS")
-    print("========================================")
+    # --------------------------------------------------------
 
     print(
-        f"Total games: {len(output_rows)}"
+        "\n========================================"
     )
 
     print(
-        f"Home pitcher matched: {home_matches}"
+        "MATCHING RESULTS"
     )
 
     print(
-        f"Away pitcher matched: {away_matches}"
+        "========================================"
     )
 
     print(
-        f"Both pitchers matched: {both_matches}"
+        f"Total games: "
+        f"{len(output_rows)}"
     )
 
     print(
-        f"No pitchers matched: {no_matches}"
+        f"Home pitcher matched: "
+        f"{home_matches}"
     )
 
-    if len(output_rows) > 0:
+    print(
+        f"Away pitcher matched: "
+        f"{away_matches}"
+    )
+
+    print(
+        f"Both pitchers matched: "
+        f"{both_matches}"
+    )
+
+    print(
+        f"No pitchers matched: "
+        f"{no_matches}"
+    )
+
+    print(
+        f"Doubleheader games processed: "
+        f"{doubleheader_games}"
+    )
+
+    print(
+        f"Doubleheader pitcher matches: "
+        f"{doubleheader_matches}"
+    )
+
+    if output_rows:
+
         rate = (
             both_matches
             / len(output_rows)
             * 100
         )
+
     else:
+
         rate = 0
 
     print(
@@ -374,18 +763,22 @@ def main():
         f"{rate:.2f}%"
     )
 
-    # --------------------------------------------------
+    # --------------------------------------------------------
     # SAVE
-    # --------------------------------------------------
+    # --------------------------------------------------------
 
-    print("\nSaving output...")
+    print(
+        "\nSaving output..."
+    )
 
     OUTPUT_FILE.parent.mkdir(
         parents=True,
         exist_ok=True
     )
 
-    fieldnames = list(output_rows[0].keys())
+    fieldnames = list(
+        output_rows[0].keys()
+    )
 
     with open(
         OUTPUT_FILE,
@@ -400,34 +793,51 @@ def main():
         )
 
         writer.writeheader()
-        writer.writerows(output_rows)
+
+        writer.writerows(
+            output_rows
+        )
 
     print(
         f"Saved: {OUTPUT_FILE}"
     )
 
-    # --------------------------------------------------
-    # SAMPLE MATCHES
-    # --------------------------------------------------
+    # --------------------------------------------------------
+    # SAMPLE MATCHED GAMES
+    # --------------------------------------------------------
 
-    print("\n========================================")
-    print("SAMPLE MATCHED GAMES")
-    print("========================================")
+    print(
+        "\n========================================"
+    )
+
+    print(
+        "SAMPLE MATCHED GAMES"
+    )
+
+    print(
+        "========================================"
+    )
 
     count = 0
 
     for row in output_rows:
 
         if (
-            row["HomeStartingPitcher"]
+            row[
+                "HomeStartingPitcherID"
+            ]
             and
-            row["AwayStartingPitcher"]
+            row[
+                "AwayStartingPitcherID"
+            ]
         ):
 
             print(
                 f"{row['Season']} | "
                 f"{row['Date']} | "
-                f"{row['Away']} @ {row['Home']} | "
+                f"Game {row['GameNumber']} | "
+                f"{row['Away']} @ "
+                f"{row['Home']} | "
                 f"{row['AwayStartingPitcher']} "
                 f"vs "
                 f"{row['HomeStartingPitcher']}"
@@ -439,12 +849,77 @@ def main():
                 break
 
     if count == 0:
-        print("No games matched.")
 
-    print("\n========================================")
-    print("PITCHER MATCHING COMPLETE")
-    print("========================================")
+        print(
+            "No games matched."
+        )
+
+    # --------------------------------------------------------
+    # DOUBLEHEADER SAMPLE
+    # --------------------------------------------------------
+
+    print(
+        "\n========================================"
+    )
+
+    print(
+        "DOUBLEHEADER SAMPLE"
+    )
+
+    print(
+        "========================================"
+    )
+
+    shown = 0
+
+    for row in output_rows:
+
+        if (
+            row["GameNumber"] in (1, 2)
+            and "(" in row["Date"]
+            and row[
+                "HomeStartingPitcherID"
+            ]
+            and row[
+                "AwayStartingPitcherID"
+            ]
+        ):
+
+            print(
+                f"{row['Season']} | "
+                f"{row['Date']} | "
+                f"Game {row['GameNumber']} | "
+                f"{row['Away']} @ "
+                f"{row['Home']} | "
+                f"{row['AwayStartingPitcher']} "
+                f"vs "
+                f"{row['HomeStartingPitcher']}"
+            )
+
+            shown += 1
+
+            if shown >= 10:
+                break
+
+    if shown == 0:
+
+        print(
+            "No doubleheader samples found."
+        )
+
+    print(
+        "\n========================================"
+    )
+
+    print(
+        "PITCHER MATCHING COMPLETE"
+    )
+
+    print(
+        "========================================"
+    )
 
 
 if __name__ == "__main__":
+
     main()

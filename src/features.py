@@ -1037,11 +1037,6 @@ def main():
 
             team_stats[season] = {}
 
-            # Reset pitcher statistics at beginning
-            # of each season.
-
-            pitcher_stats = {}
-
             print(
                 f"\nStarting season {season}...",
                 flush=True
@@ -1379,11 +1374,7 @@ def main():
 
             "GameNumber": game_number,
 
-            "MatchKey":
-                game.get(
-                    "MatchKey",
-                    ""
-                ),
+            "MatchKey": f"{game.get('MatchKey', '')}|G{game_number}",
 
             # ---------------------------------------------
             # HOME TEAM
