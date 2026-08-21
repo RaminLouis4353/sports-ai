@@ -70,11 +70,10 @@ The results represent the initial baseline model. Future versions will attempt t
 
 ## Project Structure
 
+```text
 sports-ai/
-│
 ├── README.md
 ├── .gitignore
-│
 ├── src/
 │   ├── collect_data.py
 │   ├── clean_data.py
@@ -85,13 +84,10 @@ sports-ai/
 │   ├── teams.py
 │   ├── test_dates.py
 │   └── test_pandas.py
-│
 ├── data/
 │   ├── raw/
 │   └── processed/
-│
 ├── models/
-│
 └── predictions/
 
 ## Technologies
