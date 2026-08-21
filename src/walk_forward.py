@@ -31,6 +31,10 @@ INPUT_FILE = Path(
 
 FEATURES = [
 
+    # -----------------------------------------------------
+    # TEAM FEATURES
+    # -----------------------------------------------------
+
     "Home_WinPct",
     "Home_AvgRunsScored",
     "Home_AvgRunsAllowed",
@@ -65,7 +69,47 @@ FEATURES = [
     "HomeRoadWinPct_Diff",
     "HomeRoadRunsScored_Diff",
     "HomeRoadRunsAllowed_Diff",
-    "HomeRoadRecentWinPct_Diff"
+    "HomeRoadRecentWinPct_Diff",
+
+    # -----------------------------------------------------
+    # PITCHER FEATURES
+    # -----------------------------------------------------
+
+    "Home_PitcherStarts",
+    "Home_PitcherAvgIP",
+    "Home_PitcherAvgER",
+    "Home_PitcherAvgHits",
+    "Home_PitcherAvgWalks",
+    "Home_PitcherAvgStrikeouts",
+    "Home_PitcherAvgHomeRuns",
+    "Home_PitcherWHIP",
+    "Home_PitcherK9",
+    "Home_PitcherBB9",
+    "Home_PitcherRecentERA",
+
+    "Away_PitcherStarts",
+    "Away_PitcherAvgIP",
+    "Away_PitcherAvgER",
+    "Away_PitcherAvgHits",
+    "Away_PitcherAvgWalks",
+    "Away_PitcherAvgStrikeouts",
+    "Away_PitcherAvgHomeRuns",
+    "Away_PitcherWHIP",
+    "Away_PitcherK9",
+    "Away_PitcherBB9",
+    "Away_PitcherRecentERA",
+
+    "PitcherStarts_Diff",
+    "PitcherAvgIP_Diff",
+    "PitcherAvgER_Diff",
+    "PitcherAvgHits_Diff",
+    "PitcherAvgWalks_Diff",
+    "PitcherAvgStrikeouts_Diff",
+    "PitcherAvgHomeRuns_Diff",
+    "PitcherWHIP_Diff",
+    "PitcherK9_Diff",
+    "PitcherBB9_Diff",
+    "PitcherRecentERA_Diff"
 ]
 
 
